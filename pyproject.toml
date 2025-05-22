@@ -1,0 +1,50 @@
+[project]
+name = "anytls-py"
+version = "0.0.1"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "QIN2DIM", email = "yaoqinse@gmail.com" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "typer>=0.15.4",
+]
+
+[project.scripts]
+anytls = "anytls.cli.main:main"
+
+[build-system]
+requires = ["hatchling", "uv-dynamic-versioning"]
+build-backend = "hatchling.build"
+
+# https://hatch.pypa.io/latest/config/build/#packages
+[tool.hatch.build.targets.wheel]
+packages = ["src/anytls"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "examples"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+filterwarnings = "ignore::DeprecationWarning"
+
+[tool.black]
+line-length = 100
+target-version = ["py310", "py311", "py312", "py313"]
+skip-string-normalization = true
+exclude = "_archive|.venv|docs/.*\\.ipynb"
+
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
+
+[tool.uv-dynamic-versioning]
+vcs = "git"
+style = "pep440"
+bump = true
+
+[dependency-groups]
+dev = [
+    "black>=25.1.0",
+    "hatchling>=1.27.0",
+    "uv-dynamic-versioning>=0.8.2",
+]
