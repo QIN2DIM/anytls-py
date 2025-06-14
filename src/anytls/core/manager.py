@@ -11,8 +11,7 @@ import yaml
 from rich.console import Console
 from rich.syntax import Syntax
 
-from . import constants, utils
-from dataclasses import dataclass
+from anytls.core import constants, utils
 
 
 class AnyTLSManager:
@@ -26,8 +25,10 @@ class AnyTLSManager:
         """检查 Docker 和 Docker Compose 是否安装"""
         logging.info("正在检查 Docker 和 Docker Compose 环境...")
         try:
-            utils.run_command(["docker", "--version"], capture_output=True)
-            utils.run_command(["docker", "compose", "version"], capture_output=True)
+            utils.run_command(["docker", "--version"], capture_output=True, install_docker=True)
+            utils.run_command(
+                ["docker", "compose", "version"], capture_output=True, install_docker=True
+            )
             logging.info("Docker 和 Docker Compose 已安装。")
         except (FileNotFoundError, subprocess.CalledProcessError):
             logging.warning("未检测到 Docker 或 Docker Compose。")
@@ -42,6 +43,8 @@ class AnyTLSManager:
             else:
                 logging.error("安装被用户取消。脚本无法继续。")
                 sys.exit(1)
+        except Exception as e:
+            logging.error(e)
 
     def _get_domain_from_config(self) -> str:
         """从 docker-compose.yaml 文件中解析出域名"""
@@ -156,7 +159,7 @@ class AnyTLSManager:
             "skip_cert_verify": False,
         }
         client_yaml = yaml.dump([client_config_dict], sort_keys=False)
-        self.console.print("\n" + "=" * 20 + " 客户端配置信息 " + "=" * 20)
+        self.console.print("\n" + "=" * 20 + " 客户端配置信息[mihomo] " + "=" * 20)
         self.console.print(Syntax(client_yaml, "yaml"))
         self.console.print("=" * 58 + "\n")
 
