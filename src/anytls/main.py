@@ -231,7 +231,7 @@ class AnyTLSManager:
 
     def _setup_shell_alias(self):
         """将脚本别名写入 shell 配置文件"""
-        logging.info("正在为您设置 `anytls` 快捷指令...")
+        logging.info("正在为您设置 anytls 快捷指令...")
 
         # 检测 shell 类型
         shell_path = os.environ.get("SHELL", "")
@@ -254,8 +254,8 @@ class AnyTLSManager:
             f.write(f"\n# mihomo-anytls-inbound 管理脚本别名\n")
             f.write(f"{alias_command}\n")
 
-        logging.info(f"成功将 `{ALIAS_NAME}` 快捷指令写入到 {config_file}")
-        logging.warning("请运行 `source {config_file}` 或重新打开终端以使快捷指令生效。")
+        logging.info(f"成功将 {ALIAS_NAME} 快捷指令写入到 {config_file}")
+        logging.warning(f"请运行 source {config_file} 或重新打开终端以使快捷指令生效。")
 
     def install(self, domain: str, password: Optional[str], ip: Optional[str]):
         """安装并启动 AnyTLS 服务"""
@@ -327,7 +327,7 @@ class AnyTLSManager:
         print("=" * 58 + "\n")
 
         # 6. 设置快捷指令
-        self._setup_shell_alias()
+        # self._setup_shell_alias()
 
     def remove(self):
         """停止并移除 AnyTLS 服务和相关文件"""
@@ -338,13 +338,6 @@ class AnyTLSManager:
 
         domain = self._get_domain_from_config()
         logging.info(f"检测到正在管理的域名为: {domain}")
-
-        confirm = input(
-            f"此操作将停止服务、删除证书和所有配置文件 ({BASE_DIR})。\n确定要卸载 {domain} 吗？ (y/n): "
-        ).lower()
-        if confirm != 'y':
-            logging.info("卸载已取消。")
-            return
 
         # 1. 下线容器
         logging.info("正在停止并移除 Docker 容器...")
