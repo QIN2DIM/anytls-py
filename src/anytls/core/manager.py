@@ -21,6 +21,31 @@ class AnyTLSManager:
         """初始化管理器"""
         self.console = Console()
 
+    @staticmethod
+    def _ensure_service_installed():
+        """确保服务已安装，否则退出"""
+        if not constants.DOCKER_COMPOSE_PATH.is_file():
+            logging.error(f"配置文件 ({constants.DOCKER_COMPOSE_PATH}) 未找到。")
+            logging.error("请先运行 'install' 命令来安装服务。")
+            sys.exit(1)
+
+    @staticmethod
+    def _get_domain_from_config() -> str:
+        """从 docker-compose.yaml 文件中解析出域名"""
+        if not constants.DOCKER_COMPOSE_PATH.exists():
+            logging.error(
+                f"配置文件 {constants.DOCKER_COMPOSE_PATH} 不存在。您是否已经安装了服务？"
+            )
+            sys.exit(1)
+
+        with constants.DOCKER_COMPOSE_PATH.open("r") as f:
+            data = yaml.safe_load(f)
+            container_name = data["services"]["anytls-inbound"]["container_name"]
+            domain = container_name.split("anytls-inbound-")[-1]
+            if not domain:
+                raise ValueError
+            return domain
+
     def _check_dependencies(self):
         """检查 Docker 和 Docker Compose 是否安装"""
         logging.info("正在检查 Docker 和 Docker Compose 环境...")
@@ -45,22 +70,6 @@ class AnyTLSManager:
                 sys.exit(1)
         except Exception as e:
             logging.error(e)
-
-    def _get_domain_from_config(self) -> str:
-        """从 docker-compose.yaml 文件中解析出域名"""
-        if not constants.DOCKER_COMPOSE_PATH.exists():
-            logging.error(
-                f"配置文件 {constants.DOCKER_COMPOSE_PATH} 不存在。您是否已经安装了服务？"
-            )
-            sys.exit(1)
-
-        with constants.DOCKER_COMPOSE_PATH.open("r") as f:
-            data = yaml.safe_load(f)
-            container_name = data["services"]["anytls-inbound"]["container_name"]
-            domain = container_name.split("anytls-inbound-")[-1]
-            if not domain:
-                raise ValueError
-            return domain
 
     def install(self, domain: str, password: Optional[str], ip: Optional[str]):
         """安装并启动 AnyTLS 服务"""
@@ -158,10 +167,15 @@ class AnyTLSManager:
             "alpn": ["h2", "http/1.1"],
             "skip_cert_verify": False,
         }
+
         client_yaml = yaml.dump([client_config_dict], sort_keys=False)
         self.console.print("\n" + "=" * 20 + " 客户端配置信息[mihomo] " + "=" * 20)
         self.console.print(Syntax(client_yaml, "yaml"))
         self.console.print("=" * 58 + "\n")
+
+        self.console.print(
+            "详见客户端配置文档：https://wiki.metacubex.one/config/proxies/anytls/#anytls"
+        )
 
     def remove(self):
         """停止并移除 AnyTLS 服务和相关文件"""
@@ -186,13 +200,6 @@ class AnyTLSManager:
             ["certbot", "delete", "--cert-name", domain, "--non-interactive"], check=False
         )
         logging.info("--- AnyTLS 服务已成功卸载。 ---")
-
-    def _ensure_service_installed(self):
-        """确保服务已安装，否则退出"""
-        if not constants.DOCKER_COMPOSE_PATH.is_file():
-            logging.error(f"配置文件 ({constants.DOCKER_COMPOSE_PATH}) 未找到。")
-            logging.error("请先运行 'install' 命令来安装服务。")
-            sys.exit(1)
 
     def start(self):
         """启动服务"""
@@ -226,3 +233,109 @@ class AnyTLSManager:
         utils.run_command(
             ["docker", "compose", "logs", "-f"], cwd=constants.BASE_DIR, stream_output=True
         )
+
+    def check(self):
+        """检查服务状态并打印客户端配置"""
+        self._ensure_service_installed()
+        self.console.print("\n--- 开始检查 AnyTLS 服务状态 ---")
+
+        # rich Components
+        from rich.table import Table
+
+        table = Table(title="AnyTLS 服务状态一览")
+        table.add_column("检查项", justify="right", style="cyan", no_wrap=True)
+        table.add_column("状态", style="magenta")
+
+        try:
+            # 1. 获取域名
+            domain = self._get_domain_from_config()
+            table.add_row("管理域名", domain)
+
+            # 2. 检查 Docker 容器状态
+            container_name = f"anytls-inbound-{domain}"
+            try:
+                result = utils.run_command(
+                    [
+                        "docker",
+                        "ps",
+                        "--filter",
+                        f"name={container_name}",
+                        "--format",
+                        "{{.Status}}",
+                    ],
+                    capture_output=True,
+                    check=True,
+                )
+                status_output = result.stdout.strip()
+                if "Up" in status_output:
+                    container_status = f"[green]✔ 正在运行[/green] ({status_output})"
+                elif status_output:
+                    container_status = f"[yellow]❗ 已停止[/yellow] ({status_output})"
+                else:
+                    container_status = "[red]❌ 未找到容器[/red]"
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                container_status = "[red]❌ 检查失败 (Docker 命令错误)[/red]"
+            table.add_row("服务容器状态", container_status)
+
+            # 3. 检查配置文件
+            if constants.CONFIG_PATH.exists() and constants.DOCKER_COMPOSE_PATH.exists():
+                config_status = "[green]✔ 正常[/green]"
+            else:
+                config_status = "[red]❌ 缺失[/red]"
+            table.add_row("核心配置文件", config_status)
+
+        except Exception as e:
+            self.console.print(f"[red]检查过程中出现错误: {e}[/red]")
+            return
+
+        self.console.print(table)
+
+        # 4. 基于实时服务端配置生成并打印客户端配置
+        self.console.print("\n" + "=" * 20 + " 客户端配置信息[mihomo] " + "=" * 20)
+        try:
+            # 从 config.yaml 获取密码和端口
+            with constants.CONFIG_PATH.open("r", encoding="utf8") as f:
+                server_config = yaml.safe_load(f)
+
+            listener_config = server_config["listeners"][0]
+            port = listener_config["port"]
+            # users 的 key 是随机的，所以我们直接取第一个 value
+            password = list(listener_config["users"].values())[0]
+
+            # 获取公网 IP
+            public_ip = utils.get_public_ip()
+
+            client_config_dict = {
+                "name": domain,  # 'domain' from earlier in this method
+                "type": "anytls",
+                "server": public_ip,
+                "port": port,
+                "password": password,
+                "client_fingerprint": "chrome",
+                "udp": True,
+                "idle_session_check_interval": 30,
+                "idle_session_timeout": 30,
+                "min_idle_session": 0,
+                "sni": domain,
+                "alpn": ["h2", "http/1.1"],
+                "skip_cert_verify": False,
+            }
+
+            client_yaml = yaml.dump([client_config_dict], sort_keys=False)
+            self.console.print(Syntax(client_yaml, "yaml"))
+            self.console.print("=" * 58 + "\n")
+            self.console.print(
+                "详见客户端配置文档：https://wiki.metacubex.one/config/proxies/anytls/#anytls"
+            )
+
+        except FileNotFoundError:
+            self.console.print("\n[yellow]配置文件未找到，无法生成客户端配置。[/yellow]")
+            self.console.print(
+                "[yellow]可能是通过旧版本安装的。可以尝试重新运行 'install' 命令以生成。[/yellow]"
+            )
+            self.console.print("=" * 58 + "\n")
+        except Exception as e:
+            self.console.print(f"\n[red]生成客户端配置时出错: {e}[/red]")
+            self.console.print("=" * 58 + "\n")
+
+        self.console.print("--- 检查完毕 ---\n")

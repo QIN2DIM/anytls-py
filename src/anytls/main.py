@@ -2,7 +2,7 @@
 
 import typer
 
-from anytls.cli import install, log, remove, start, stop, update
+from anytls.cli import install, log, remove, start, stop, update, check
 from anytls.logging_config import setup_logging
 
 app = typer.Typer(
@@ -28,6 +28,7 @@ app.add_typer(log.app, name="log")
 app.add_typer(start.app, name="start")
 app.add_typer(stop.app, name="stop")
 app.add_typer(update.app, name="update")
+app.add_typer(check.app, name="check")
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

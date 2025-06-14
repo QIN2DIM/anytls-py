@@ -13,10 +13,9 @@ wheels = [
 
 [[package]]
 name = "anytls-py"
-version = "0.0.2.post1"
+version = "0.0.2.post4"
 source = { editable = "." }
 dependencies = [
-    { name = "pydantic" },
     { name = "pyyaml" },
     { name = "typer" },
 ]
@@ -30,7 +29,6 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "pydantic", specifier = ">=2.0" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "typer", specifier = ">=0.15.4" },
 ]
