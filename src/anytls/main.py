@@ -117,12 +117,12 @@ class AnyTLSManager:
             sys.exit(1)
 
     def _run_command(
-            self,
-            command: list[str],
-            cwd: Optional[Path] = None,
-            capture_output: bool = False,
-            check: bool = True,
-            stream_output: bool = False,
+        self,
+        command: list[str],
+        cwd: Optional[Path] = None,
+        capture_output: bool = False,
+        check: bool = True,
+        stream_output: bool = False,
     ) -> subprocess.CompletedProcess:
         """
         统一的命令执行函数
@@ -146,11 +146,7 @@ class AnyTLSManager:
                 return subprocess.CompletedProcess(command, process.returncode)
             else:
                 return subprocess.run(
-                    command,
-                    cwd=cwd,
-                    capture_output=capture_output,
-                    text=True,
-                    check=check,
+                    command, cwd=cwd, capture_output=capture_output, text=True, check=check
                 )
         except FileNotFoundError:
             logging.error(f"命令未找到: {command[0]}。请确保它已安装并在您的 PATH 中。")
@@ -179,7 +175,9 @@ class AnyTLSManager:
                 self._run_command(["/bin/bash", "-c", DOCKER_INSTALL_SCRIPT])
                 logging.info("请重新运行脚本以应用更改。")
                 # 提示用户可能需要重新登录以使 docker 组生效
-                logging.info("注意：您可能需要重新登录或运行 `newgrp docker` 以便非 root 用户无需 sudo 即可运行 docker。")
+                logging.info(
+                    "注意：您可能需要重新登录或运行 `newgrp docker` 以便非 root 用户无需 sudo 即可运行 docker。"
+                )
                 sys.exit(0)
             else:
                 logging.error("安装被用户取消。脚本无法继续。")
@@ -276,10 +274,19 @@ class AnyTLSManager:
 
         # 2. 申请证书
         logging.info(f"正在为域名 {domain} 申请 Let's Encrypt 证书...")
-        self._run_command([
-            "certbot", "certonly", "--standalone",
-            "--register-unsafely-without-email", "-d", domain, "--agree-tos"
-        ])
+        self._run_command(
+            [
+                "certbot",
+                "certonly",
+                "--standalone",
+                "--register-unsafely-without-email",
+                "--agree-tos",
+                "--keep",
+                "--non-interactive",
+                "-d",
+                domain,
+            ]
+        )
         logging.info("证书申请成功。")
 
         # 3. 构建工作目录和配置文件
@@ -304,7 +311,9 @@ class AnyTLSManager:
         self._run_command(["docker", "compose", "pull"], cwd=BASE_DIR)
 
         logging.info("正在启动服务...")
-        self._run_command(["docker", "compose", "down"], cwd=BASE_DIR, check=False)  # 确保旧容器已停止
+        self._run_command(
+            ["docker", "compose", "down"], cwd=BASE_DIR, check=False
+        )  # 确保旧容器已停止
         self._run_command(["docker", "compose", "up", "-d"], cwd=BASE_DIR)
 
         logging.info("--- AnyTLS 服务安装并启动成功！ ---")
@@ -331,7 +340,8 @@ class AnyTLSManager:
         logging.info(f"检测到正在管理的域名为: {domain}")
 
         confirm = input(
-            f"此操作将停止服务、删除证书和所有配置文件 ({BASE_DIR})。\n确定要卸载 {domain} 吗？ (y/n): ").lower()
+            f"此操作将停止服务、删除证书和所有配置文件 ({BASE_DIR})。\n确定要卸载 {domain} 吗？ (y/n): "
+        ).lower()
         if confirm != 'y':
             logging.info("卸载已取消。")
             return
@@ -346,7 +356,9 @@ class AnyTLSManager:
 
         # 3. 删除证书
         logging.info(f"正在删除 {domain} 的 Let's Encrypt 证书...")
-        self._run_command(["certbot", "delete", "--cert-name", domain, "--non-interactive"], check=False)
+        self._run_command(
+            ["certbot", "delete", "--cert-name", domain, "--non-interactive"], check=False
+        )
 
         logging.info("--- AnyTLS 服务已成功卸载。 ---")
 
@@ -400,7 +412,9 @@ def main(argv: Optional[Sequence[str]] = None):
     # install 指令
     parser_install = subparsers.add_parser("install", help="安装并启动 AnyTLS 服务")
     parser_install.add_argument("-d", "--domain", type=str, required=True, help="绑定的域名")
-    parser_install.add_argument("-p", "--password", type=str, help="手动指定连接密码 (可选，默认随机生成)")
+    parser_install.add_argument(
+        "-p", "--password", type=str, help="手动指定连接密码 (可选，默认随机生成)"
+    )
     parser_install.add_argument("--ip", type=str, help="手动指定服务器公网 IP (可选，默认自动检测)")
 
     # 其他指令
