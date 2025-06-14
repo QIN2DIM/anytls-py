@@ -1,6 +1,6 @@
 [project]
 name = "anytls-py"
-version = "0.0.2"
+version = "0.0.2-post2"
 description = "mihomo-anytls-inbound 服务管理脚本"
 readme = "README.md"
 authors = [
@@ -9,7 +9,6 @@ authors = [
 requires-python = ">=3.12"
 dependencies = [
     "typer>=0.15.4",
-    "pydantic>=2.0",
     "pyyaml>=6.0",
 ]
 

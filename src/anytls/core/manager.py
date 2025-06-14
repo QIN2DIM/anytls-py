@@ -5,16 +5,14 @@ import shutil
 import subprocess
 import sys
 import uuid
-from pathlib import Path
 from typing import Optional
 
 import yaml
 from rich.console import Console
 from rich.syntax import Syntax
 
-from ..models.docker import AnyTlsInboundService, DockerCompose, Services
-from ..models.mihomo import ClientConfig, Listener, MihomoConfig
 from . import constants, utils
+from dataclasses import dataclass
 
 
 class AnyTLSManager:
@@ -94,36 +92,43 @@ class AnyTLSManager:
         constants.BASE_DIR.mkdir(exist_ok=True)
 
         # 创建 Mihomo 配置
-        mihomo_cfg = MihomoConfig(
-            listeners=[
-                Listener(
-                    name=f"anytls-in-{uuid.uuid4()}",
-                    users={f"user_{uuid.uuid4().hex[:8]}": service_password},
-                    certificate=Path(f"/etc/letsencrypt/live/{domain}/fullchain.pem"),
-                    private_key=Path(f"/etc/letsencrypt/live/{domain}/privkey.pem"),
-                )
+        mihomo_cfg_dict = {
+            "listeners": [
+                {
+                    "name": f"anytls-in-{uuid.uuid4()}",
+                    "type": "anytls",
+                    "port": constants.LISTEN_PORT,
+                    "listen": "0.0.0.0",
+                    "users": {f"user_{uuid.uuid4().hex[:8]}": service_password},
+                    "certificate": f"/etc/letsencrypt/live/{domain}/fullchain.pem",
+                    "private-key": f"/etc/letsencrypt/live/{domain}/privkey.pem",
+                }
             ]
-        )
-        with constants.CONFIG_PATH.open("w") as f:
-            yaml.dump(mihomo_cfg.model_dump(by_alias=True, exclude_none=True), f, sort_keys=False)
+        }
+
+        with constants.CONFIG_PATH.open("w", encoding="utf8") as f:
+            yaml.dump(mihomo_cfg_dict, f, sort_keys=False)
         logging.info(f"已生成配置文件: {constants.CONFIG_PATH}")
 
         # 创建 Docker Compose 配置
-        docker_compose_cfg = DockerCompose(
-            services=Services(
-                anytls_inbound=AnyTlsInboundService(
-                    container_name=f"anytls-inbound-{domain}",
-                    volumes=[
+        docker_compose_cfg_dict = {
+            "services": {
+                "anytls-inbound": {
+                    "image": constants.SERVICE_IMAGE,
+                    "container_name": f"anytls-inbound-{domain}",
+                    "restart": "always",
+                    "ports": [f"{constants.LISTEN_PORT}:{constants.LISTEN_PORT}"],
+                    "working_dir": "/app/proxy-inbound/",
+                    "volumes": [
                         "/etc/letsencrypt/:/etc/letsencrypt/",
                         "./config.yaml:/app/proxy-inbound/config.yaml",
                     ],
-                )
-            )
-        )
-        with constants.DOCKER_COMPOSE_PATH.open("w") as f:
-            yaml.dump(
-                docker_compose_cfg.model_dump(by_alias=True, exclude_none=True), f, sort_keys=False
-            )
+                    "command": ["-f", "config.yaml", "-d", "/"],
+                }
+            }
+        }
+        with constants.DOCKER_COMPOSE_PATH.open("w", encoding="utf8") as f:
+            yaml.dump(docker_compose_cfg_dict, f, sort_keys=False)
         logging.info(f"已生成 Docker Compose 文件: {constants.DOCKER_COMPOSE_PATH}")
 
         logging.info("正在拉取最新的 Docker 镜像...")
@@ -135,10 +140,22 @@ class AnyTLSManager:
         logging.info("--- AnyTLS 服务安装并启动成功！ ---")
 
         # 打印客户端配置
-        client_config = ClientConfig(
-            name=domain, server=public_ip, password=service_password, sni=domain
-        )
-        client_yaml = yaml.dump([client_config.model_dump(by_alias=True)], sort_keys=False)
+        client_config_dict = {
+            "name": domain,
+            "type": "anytls",
+            "server": public_ip,
+            "port": constants.LISTEN_PORT,
+            "password": service_password,
+            "client_fingerprint": "chrome",
+            "udp": True,
+            "idle_session_check_interval": 30,
+            "idle_session_timeout": 30,
+            "min_idle_session": 0,
+            "sni": domain,
+            "alpn": ["h2", "http/1.1"],
+            "skip_cert_verify": False,
+        }
+        client_yaml = yaml.dump([client_config_dict], sort_keys=False)
         self.console.print("\n" + "=" * 20 + " 客户端配置信息 " + "=" * 20)
         self.console.print(Syntax(client_yaml, "yaml"))
         self.console.print("=" * 58 + "\n")
