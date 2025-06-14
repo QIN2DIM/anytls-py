@@ -21,7 +21,6 @@ BASE_DIR = Path("/home/anytls")
 DOCKER_COMPOSE_PATH = BASE_DIR / "docker-compose.yaml"
 CONFIG_PATH = BASE_DIR / "config.yaml"
 SCRIPT_PATH = Path(__file__).resolve()
-ALIAS_NAME = "anytls"
 
 # --- 日志配置 ---
 logging.basicConfig(
@@ -228,34 +227,6 @@ class AnyTLSManager:
         except (StopIteration, ValueError):
             logging.error(f"无法从 {DOCKER_COMPOSE_PATH} 中解析出域名。配置文件可能已损坏。")
             sys.exit(1)
-
-    def _setup_shell_alias(self):
-        """将脚本别名写入 shell 配置文件"""
-        logging.info("正在为您设置 anytls 快捷指令...")
-
-        # 检测 shell 类型
-        shell_path = os.environ.get("SHELL", "")
-        if "zsh" in shell_path:
-            config_file = Path.home() / ".zshrc"
-        else:
-            config_file = Path.home() / ".bashrc"
-
-        alias_command = f"alias {ALIAS_NAME}='{sys.executable} {SCRIPT_PATH}'"
-
-        if not config_file.exists():
-            config_file.touch()
-
-        # 检查别名是否已存在
-        if alias_command in config_file.read_text():
-            logging.info(f"`{ALIAS_NAME}` 快捷指令已经存在。")
-            return
-
-        with config_file.open("a") as f:
-            f.write(f"\n# mihomo-anytls-inbound 管理脚本别名\n")
-            f.write(f"{alias_command}\n")
-
-        logging.info(f"成功将 {ALIAS_NAME} 快捷指令写入到 {config_file}")
-        logging.warning(f"请运行 source {config_file} 或重新打开终端以使快捷指令生效。")
 
     def install(self, domain: str, password: Optional[str], ip: Optional[str]):
         """安装并启动 AnyTLS 服务"""
