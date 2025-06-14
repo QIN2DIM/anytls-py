@@ -194,7 +194,7 @@ class AnyTLSManager:
             for service in ip_services:
                 try:
                     result = self._run_command(
-                        ["curl", "-s", service], capture_output=True, check=True
+                        ["curl", "-s", "--ipv4", service], capture_output=True, check=True
                     )
                     ip = result.stdout.strip()
                     if ip:
