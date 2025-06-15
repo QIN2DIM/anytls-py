@@ -8,3 +8,5 @@ CONFIG_PATH = BASE_DIR / "config.yaml"
 
 LISTEN_PORT = 8443
 SERVICE_IMAGE = "metacubex/mihomo:latest"
+
+MIHOMO_ANYTLS_DOCS = "https://wiki.metacubex.one/config/proxies/anytls/#anytls"

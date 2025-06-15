@@ -173,9 +173,7 @@ class AnyTLSManager:
         self.console.print(Syntax(client_yaml, "yaml"))
         self.console.print("=" * 58 + "\n")
 
-        self.console.print(
-            "详见客户端配置文档：https://wiki.metacubex.one/config/proxies/anytls/#anytls"
-        )
+        self.console.print(f"详见客户端配置文档：{constants.MIHOMO_ANYTLS_DOCS}\n")
 
     def remove(self):
         """停止并移除 AnyTLS 服务和相关文件"""
@@ -284,6 +282,8 @@ class AnyTLSManager:
                 config_status = "[red]❌ 缺失[/red]"
             table.add_row("核心配置文件", config_status)
 
+            # 获取公网 IP
+            public_ip = utils.get_public_ip()
         except Exception as e:
             self.console.print(f"[red]检查过程中出现错误: {e}[/red]")
             return
@@ -291,7 +291,6 @@ class AnyTLSManager:
         self.console.print(table)
 
         # 4. 基于实时服务端配置生成并打印客户端配置
-        self.console.print("\n" + "=" * 20 + " 客户端配置信息[mihomo] " + "=" * 20)
         try:
             # 从 config.yaml 获取密码和端口
             with constants.CONFIG_PATH.open("r", encoding="utf8") as f:
@@ -301,9 +300,6 @@ class AnyTLSManager:
             port = listener_config["port"]
             # users 的 key 是随机的，所以我们直接取第一个 value
             password = list(listener_config["users"].values())[0]
-
-            # 获取公网 IP
-            public_ip = utils.get_public_ip()
 
             client_config_dict = {
                 "name": domain,  # 'domain' from earlier in this method
@@ -322,11 +318,10 @@ class AnyTLSManager:
             }
 
             client_yaml = yaml.dump([client_config_dict], sort_keys=False)
+            self.console.print("\n" + "=" * 20 + " 客户端配置信息[mihomo] " + "=" * 20)
             self.console.print(Syntax(client_yaml, "yaml"))
             self.console.print("=" * 58 + "\n")
-            self.console.print(
-                "详见客户端配置文档：https://wiki.metacubex.one/config/proxies/anytls/#anytls"
-            )
+            self.console.print(f"详见客户端配置文档：{constants.MIHOMO_ANYTLS_DOCS}\n")
 
         except FileNotFoundError:
             self.console.print("\n[yellow]配置文件未找到，无法生成客户端配置。[/yellow]")
@@ -337,5 +332,3 @@ class AnyTLSManager:
         except Exception as e:
             self.console.print(f"\n[red]生成客户端配置时出错: {e}[/red]")
             self.console.print("=" * 58 + "\n")
-
-        self.console.print("--- 检查完毕 ---\n")
