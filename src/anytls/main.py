@@ -1,8 +1,10 @@
 """AnyTLS 服务管理脚本 - 主入口"""
 
+from importlib import metadata
+
 import typer
 
-from anytls.cli import install, log, remove, start, stop, update, check
+from anytls.cli import install, log, remove, start, stop, update, check, self_
 from anytls.logging_config import setup_logging
 
 app = typer.Typer(
@@ -23,7 +25,21 @@ def main(ctx: typer.Context):
         ctx.exit(0)
 
 
+@app.command()
+def version():
+    """
+    Show the version of the anytls-py tool.
+    """
+    try:
+        v = metadata.version("anytls-py")
+        typer.echo(f"anytls-py version {v}")
+    except metadata.PackageNotFoundError:
+        typer.echo("Could not determine version. Is anytls-py installed as a package?")
+        raise typer.Exit(code=1)
+
+
 # 注册子命令
+app.add_typer(self_.app, name="self")
 app.add_typer(install.app, name="install")
 app.add_typer(remove.app, name="remove")
 app.add_typer(log.app, name="log")
