@@ -23,10 +23,10 @@ def install(
         Optional[str], typer.Option("--ip", help="手动指定服务器公网 IP (可选，默认自动检测)")
     ] = None,
     port: Annotated[
-        int, typer.Option("--port", help="指定监听端口 (可选，默认 8443)")
+        Optional[int], typer.Option("--port", help="指定监听端口 (可选，默认 8443)")
     ] = constants.LISTEN_PORT,
     image: Annotated[
-        str, typer.Option("--image", help="指定用于托管 AnyTLS server 的服务镜像")
+        Optional[str], typer.Option("--image", help="指定用于托管 AnyTLS server 的服务镜像")
     ] = constants.SERVICE_IMAGE,
 ):
     """

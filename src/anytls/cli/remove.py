@@ -2,7 +2,7 @@
 
 import typer
 
-from ..core.manager import AnyTLSManager
+from anytls.core.manager import AnyTLSManager
 
 app = typer.Typer(help="停止并移除 AnyTLS 服务。")
 

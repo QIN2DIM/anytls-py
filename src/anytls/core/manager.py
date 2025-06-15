@@ -325,17 +325,78 @@ class AnyTLSManager:
         utils.run_command(compose_cmd + ["down"], cwd=constants.BASE_DIR)
         logging.info("AnyTLS 服务已停止。")
 
-    def update(self):
-        """更新服务（拉取新镜像并重启）"""
+    def update(self, password: Optional[str], port: Optional[int], image: Optional[str]):
+        """
+        更新服务。
+        如果未提供任何参数，则仅拉取新镜像并重启。
+        如果提供了参数，则更新相应的配置，然后拉取镜像并重启。
+        """
         self._ensure_service_installed()
         logging.info("--- 开始更新 AnyTLS 服务 ---")
+        config_changed = False
+
+        try:
+            # --- 步骤 1: 加载现有配置 ---
+            logging.debug("正在加载现有配置文件...")
+            with constants.DOCKER_COMPOSE_PATH.open("r", encoding="utf8") as f:
+                docker_compose_cfg = yaml.safe_load(f)
+            with constants.CONFIG_PATH.open("r", encoding="utf8") as f:
+                mihomo_cfg = yaml.safe_load(f)
+
+            # --- 步骤 2: 按需更新配置 ---
+            if password:
+                logging.info("正在更新连接密码...")
+                # user key 是随机生成的，所以直接替换整个 users 字典
+                mihomo_cfg["listeners"][0]["users"] = {f"user_{uuid.uuid4().hex[:8]}": password}
+                config_changed = True
+                logging.info("连接密码已在配置中更新。")
+
+            if port:
+                logging.info(f"正在更新监听端口为 {port}...")
+                mihomo_cfg["listeners"][0]["port"] = port
+                docker_compose_cfg["services"]["anytls-inbound"]["ports"] = [f"{port}:{port}"]
+                config_changed = True
+                logging.info(f"监听端口已在配置中更新为 {port}。")
+
+            if image:
+                logging.info(f"正在更新服务镜像为 {image}...")
+                docker_compose_cfg["services"]["anytls-inbound"]["image"] = image
+                config_changed = True
+                logging.info(f"服务镜像已在配置中更新为 {image}。")
+
+            # --- 步骤 3: 如果配置有变，则写回文件 ---
+            if config_changed:
+                logging.info("正在保存更新后的配置文件...")
+                with constants.CONFIG_PATH.open("w", encoding="utf8") as f:
+                    yaml.dump(mihomo_cfg, f, sort_keys=False)
+                with constants.DOCKER_COMPOSE_PATH.open("w", encoding="utf8") as f:
+                    yaml.dump(docker_compose_cfg, f, sort_keys=False)
+                logging.info("配置文件保存成功。")
+
+        except FileNotFoundError:
+            logging.error(f"配置文件未找到。请确认服务已正确安装。")
+            sys.exit(1)
+        except Exception as e:
+            logging.error(f"更新配置时发生错误: {e}")
+            sys.exit(1)
+
+        # --- 步骤 4: 拉取镜像并重启服务 ---
         compose_cmd = self._get_compose_cmd()
-        logging.info("正在拉取最新的 Docker 镜像...")
+        if image:
+            logging.info(f"正在拉取指定的 Docker 镜像 ({image})...")
+        else:
+            logging.info("正在拉取最新的 Docker 镜像...")
         utils.run_command(compose_cmd + ["pull"], cwd=constants.BASE_DIR)
-        logging.info("正在使用新镜像重启服务...")
+
+        logging.info("正在使用新配置重启服务...")
         utils.run_command(compose_cmd + ["down"], cwd=constants.BASE_DIR, check=False)
         utils.run_command(compose_cmd + ["up", "-d"], cwd=constants.BASE_DIR)
+
         logging.info("--- AnyTLS 服务更新完成。 ---")
+
+        # --- 步骤 5: 显示更新后的状态 ---
+        self.console.print("\n--- 更新后服务状态 ---")
+        self.check()
 
     def log(self):
         """查看服务日志"""
