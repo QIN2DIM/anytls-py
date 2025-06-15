@@ -36,23 +36,43 @@ uv tool install anytls-py
 一键安装指令：
 
 ```bash
-uv run anytls-py install -d [DOMAIN]
+uv run anytls install -d [DOMAIN]
 ```
 | 必选参数         | 简介       |
 | ---------------- | ---------- |
 | `--domain`, `-d` | 绑定的域名 |
 
-| 可选参数           | 简介                                         |
-| ------------------ | -------------------------------------------- |
-| `--password`, `-p` | 手动指定连接密码 (可选，默认随机生成)        |
-| `--ip`             | 手动指定服务器公网 IPv4 (可选，默认自动检测) |
+| 可选参数           | 简介                                                 |
+| ------------------ | ---------------------------------------------------- |
+| `--password`, `-p` | 手动指定连接密码 (可选，默认随机生成)                |
+| `--ip`             | 手动指定服务器公网 IPv4 (可选，默认自动检测)         |
+| `--port`           | 指定监听端口 (可选，默认 8443)                       |
+| `--image`          | 指定托管镜像（可选，默认 `metacubex/mihomo:latest`） |
 
 ## 下一步
 
-查看所有管理指令：
+移除所有项目依赖：
+
+```bash
+uv run anytls remove
+```
+
+升级脚本：
+
+```bash
+uv run anytls self update
+```
+
+根据正在运行的服务配置生成 `mihomo client outbound` 配置：
+
+```bash
+uv run anytls check
+```
+
+探索其他指令：
 
 ```bash
 uv run anytls --help
 ```
 
-![image-20250615082554515](assets/image-20250615082554515.png)
+![image-20250615192420892](assets/image-20250615192420892.png)
