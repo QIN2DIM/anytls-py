@@ -42,6 +42,7 @@ def run_command(
     capture_output: bool = False,
     check: bool = True,
     stream_output: bool = False,
+    install_docker: bool = False,
 ) -> subprocess.CompletedProcess:
     """
     统一的命令执行函数
@@ -52,6 +53,7 @@ def run_command(
         capture_output: 是否捕获 stdout 和 stderr.
         check: 如果命令返回非零退出码，是否抛出 CalledProcessError.
         stream_output: 是否实时打印输出（用于 logs -f）.
+        install_docker: 从 install 指令进入，自动安装 docker.
 
     Returns:
         CompletedProcess 对象.
@@ -68,6 +70,8 @@ def run_command(
             )
     except FileNotFoundError:
         logging.error(f"命令未找到: {command[0]}。请确保它已安装并在您的 PATH 中。")
+        if install_docker:
+            raise FileNotFoundError
         sys.exit(1)
     except subprocess.CalledProcessError as e:
         logging.error(f"命令执行失败，返回码: {e.returncode}")

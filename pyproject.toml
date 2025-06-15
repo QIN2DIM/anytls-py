@@ -1,6 +1,6 @@
 [project]
 name = "anytls-py"
-version = "0.0.2"
+version = "0.0.3-post6"
 description = "mihomo-anytls-inbound 服务管理脚本"
 readme = "README.md"
 authors = [
@@ -9,7 +9,6 @@ authors = [
 requires-python = ">=3.12"
 dependencies = [
     "typer>=0.15.4",
-    "pydantic>=2.0",
     "pyyaml>=6.0",
 ]
 
@@ -29,12 +28,6 @@ testpaths = ["tests", "examples"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 filterwarnings = "ignore::DeprecationWarning"
-
-[tool.black]
-line-length = 100
-target-version = ["py312"]
-skip-string-normalization = true
-exclude = "_archive|.venv|docs/.*\\.ipynb"
 
 [tool.hatch.version]
 source = "uv-dynamic-versioning"
