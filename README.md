@@ -7,7 +7,7 @@
 
 ## 速通指南
 
-### Installation
+### uv
 
 > [uv installation](https://docs.astral.sh/uv/getting-started/installation/) 
 
@@ -16,6 +16,15 @@
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
+
+（可选）To add `$HOME/.local/bin` to your PATH, either restart your shell or run:
+
+```bash
+source $HOME/.local/bin/env (sh, bash, zsh)
+source $HOME/.local/bin/env.fish (fish)
+```
+
+### Installation
 
 使用 uv 以 tool 的方式安装 `anytls-py`:
 

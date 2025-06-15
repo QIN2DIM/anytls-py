@@ -1,6 +1,6 @@
 [project]
 name = "anytls-py"
-version = "0.1.0"
+version = "0.1.0-post1"
 description = "mihomo-anytls-inbound manager"
 readme = "README.md"
 authors = [
