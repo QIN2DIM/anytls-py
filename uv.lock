@@ -4,7 +4,7 @@ requires-python = ">=3.10"
 
 [[package]]
 name = "anytls-py"
-version = "0.1.4.post1"
+version = "0.1.5"
 source = { editable = "." }
 dependencies = [
     { name = "pyyaml" },

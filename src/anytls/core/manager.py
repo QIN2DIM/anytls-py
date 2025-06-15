@@ -148,7 +148,9 @@ class AnyTLSManager:
             logging.error("请参考 https://certbot.eff.org/instructions 手动安装后重试。")
             sys.exit(1)
 
-    def install(self, domain: str, password: Optional[str], ip: Optional[str], port: int):
+    def install(
+        self, domain: str, password: Optional[str], ip: Optional[str], port: int, image: str
+    ):
         """安装并启动 AnyTLS 服务"""
         # --- 步骤 1: 初始检查和依赖安装 ---
         logging.info("--- 步骤 1/4: 开始环境检查与依赖安装 ---")
@@ -233,7 +235,7 @@ class AnyTLSManager:
         docker_compose_cfg_dict = {
             "services": {
                 "anytls-inbound": {
-                    "image": constants.SERVICE_IMAGE,
+                    "image": image,
                     "container_name": f"anytls-inbound-{domain}",
                     "restart": "always",
                     "ports": [f"{port}:{port}"],

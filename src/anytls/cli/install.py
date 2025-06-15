@@ -4,7 +4,8 @@ from typing import Annotated, Optional
 
 import typer
 
-from ..core.manager import AnyTLSManager
+from anytls.core import constants
+from anytls.core.manager import AnyTLSManager
 
 app = typer.Typer(help="安装并启动 AnyTLS 服务。")
 
@@ -22,12 +23,14 @@ def install(
         Optional[str], typer.Option("--ip", help="手动指定服务器公网 IP (可选，默认自动检测)")
     ] = None,
     port: Annotated[
-        int,
-        typer.Option("--port", help="指定监听端口 (可选，默认 8443)"),
-    ] = 8443,
+        int, typer.Option("--port", help="指定监听端口 (可选，默认 8443)")
+    ] = constants.LISTEN_PORT,
+    image: Annotated[
+        str, typer.Option("--image", help="指定用于托管 AnyTLS server 的服务镜像")
+    ] = constants.SERVICE_IMAGE,
 ):
     """
     安装并启动 AnyTLS 服务。
     """
     manager = AnyTLSManager()
-    manager.install(domain=domain, password=password, ip=ip, port=port)
+    manager.install(domain=domain, password=password, ip=ip, port=port, image=image)
