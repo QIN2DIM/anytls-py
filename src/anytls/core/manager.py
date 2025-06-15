@@ -20,6 +20,42 @@ class AnyTLSManager:
     def __init__(self):
         """初始化管理器"""
         self.console = Console()
+        self.compose_cmd: Optional[list[str]] = None
+
+    def _get_compose_cmd(self) -> list[str]:
+        """检测并返回可用的 docker compose 命令，并缓存结果。"""
+        if self.compose_cmd:
+            return self.compose_cmd
+
+        try:
+            # 优先使用 "docker compose" (V2)
+            utils.run_command(
+                ["docker", "compose", "version"],
+                capture_output=True,
+                install_docker=True,
+                skip_execution_logging=True,
+                propagate_exception=True,
+            )
+            self.compose_cmd = ["docker", "compose"]
+            logging.debug("检测到 Docker Compose V2 (docker compose)，将使用此命令。")
+            return self.compose_cmd
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            # 回退到 "docker-compose" (V1)
+            logging.debug("未检测到 'docker compose' (V2)，尝试 'docker-compose' (V1)...")
+            try:
+                utils.run_command(
+                    ["docker-compose", "--version"],
+                    capture_output=True,
+                    install_docker=True,
+                    skip_execution_logging=True,
+                    propagate_exception=True,
+                )
+                self.compose_cmd = ["docker-compose"]
+                logging.debug("检测到 Docker Compose V1 (docker-compose)，将使用此命令。")
+                return self.compose_cmd
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                # 两个都找不到，这个异常将在 _check_dependencies 中被捕获并处理
+                raise FileNotFoundError("未找到 'docker compose' 或 'docker-compose'。")
 
     @staticmethod
     def _ensure_service_installed():
@@ -51,9 +87,7 @@ class AnyTLSManager:
         logging.info("正在检查 Docker 和 Docker Compose 环境...")
         try:
             utils.run_command(["docker", "--version"], capture_output=True, install_docker=True)
-            utils.run_command(
-                ["docker", "compose", "version"], capture_output=True, install_docker=True
-            )
+            self._get_compose_cmd()  # 检测并缓存 docker compose 命令
             logging.info("Docker 和 Docker Compose 已安装。")
         except (FileNotFoundError, subprocess.CalledProcessError):
             logging.warning("未检测到 Docker 或 Docker Compose。")
@@ -143,11 +177,12 @@ class AnyTLSManager:
             yaml.dump(docker_compose_cfg_dict, f, sort_keys=False)
         logging.info(f"已生成 Docker Compose 文件: {constants.DOCKER_COMPOSE_PATH}")
 
+        compose_cmd = self._get_compose_cmd()
         logging.info("正在拉取最新的 Docker 镜像...")
-        utils.run_command(["docker", "compose", "pull"], cwd=constants.BASE_DIR)
+        utils.run_command(compose_cmd + ["pull"], cwd=constants.BASE_DIR)
         logging.info("正在启动服务...")
-        utils.run_command(["docker", "compose", "down"], cwd=constants.BASE_DIR, check=False)
-        utils.run_command(["docker", "compose", "up", "-d"], cwd=constants.BASE_DIR)
+        utils.run_command(compose_cmd + ["down"], cwd=constants.BASE_DIR, check=False)
+        utils.run_command(compose_cmd + ["up", "-d"], cwd=constants.BASE_DIR)
 
         logging.info("--- AnyTLS 服务安装并启动成功！ ---")
 
@@ -185,10 +220,9 @@ class AnyTLSManager:
         domain = self._get_domain_from_config()
         logging.info(f"检测到正在管理的域名为: {domain}")
 
+        compose_cmd = self._get_compose_cmd()
         logging.info("正在停止并移除 Docker 容器...")
-        utils.run_command(
-            ["docker", "compose", "down", "--volumes"], cwd=constants.BASE_DIR, check=False
-        )
+        utils.run_command(compose_cmd + ["down", "--volumes"], cwd=constants.BASE_DIR, check=False)
 
         logging.info(f"正在删除工作目录: {constants.BASE_DIR}")
         shutil.rmtree(constants.BASE_DIR)
@@ -203,34 +237,36 @@ class AnyTLSManager:
         """启动服务"""
         self._ensure_service_installed()
         logging.info("正在启动 AnyTLS 服务...")
-        utils.run_command(["docker", "compose", "up", "-d"], cwd=constants.BASE_DIR)
+        compose_cmd = self._get_compose_cmd()
+        utils.run_command(compose_cmd + ["up", "-d"], cwd=constants.BASE_DIR)
         logging.info("AnyTLS 服务已启动。")
 
     def stop(self):
         """停止服务"""
         self._ensure_service_installed()
         logging.info("正在停止 AnyTLS 服务...")
-        utils.run_command(["docker", "compose", "down"], cwd=constants.BASE_DIR)
+        compose_cmd = self._get_compose_cmd()
+        utils.run_command(compose_cmd + ["down"], cwd=constants.BASE_DIR)
         logging.info("AnyTLS 服务已停止。")
 
     def update(self):
         """更新服务（拉取新镜像并重启）"""
         self._ensure_service_installed()
         logging.info("--- 开始更新 AnyTLS 服务 ---")
+        compose_cmd = self._get_compose_cmd()
         logging.info("正在拉取最新的 Docker 镜像...")
-        utils.run_command(["docker", "compose", "pull"], cwd=constants.BASE_DIR)
+        utils.run_command(compose_cmd + ["pull"], cwd=constants.BASE_DIR)
         logging.info("正在使用新镜像重启服务...")
-        utils.run_command(["docker", "compose", "down"], cwd=constants.BASE_DIR, check=False)
-        utils.run_command(["docker", "compose", "up", "-d"], cwd=constants.BASE_DIR)
+        utils.run_command(compose_cmd + ["down"], cwd=constants.BASE_DIR, check=False)
+        utils.run_command(compose_cmd + ["up", "-d"], cwd=constants.BASE_DIR)
         logging.info("--- AnyTLS 服务更新完成。 ---")
 
     def log(self):
         """查看服务日志"""
         self._ensure_service_installed()
         logging.info("正在显示服务日志... (按 Ctrl+C 退出)")
-        utils.run_command(
-            ["docker", "compose", "logs", "-f"], cwd=constants.BASE_DIR, stream_output=True
-        )
+        compose_cmd = self._get_compose_cmd()
+        utils.run_command(compose_cmd + ["logs", "-f"], cwd=constants.BASE_DIR, stream_output=True)
 
     def check(self):
         """检查服务状态并打印客户端配置"""

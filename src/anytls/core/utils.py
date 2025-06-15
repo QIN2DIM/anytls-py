@@ -43,6 +43,8 @@ def run_command(
     check: bool = True,
     stream_output: bool = False,
     install_docker: bool = False,
+    skip_execution_logging: bool = False,
+    propagate_exception: bool = False,
 ) -> subprocess.CompletedProcess:
     """
     统一的命令执行函数
@@ -54,11 +56,15 @@ def run_command(
         check: 如果命令返回非零退出码，是否抛出 CalledProcessError.
         stream_output: 是否实时打印输出（用于 logs -f）.
         install_docker: 从 install 指令进入，自动安装 docker.
+        skip_execution_logging: 隐藏执行指令日志.
+        propagate_exception: 是否向上抛出异常而不是直接退出.
 
     Returns:
         CompletedProcess 对象.
     """
-    logging.info(f"执行命令: {' '.join(command)}")
+    if not skip_execution_logging:
+        logging.info(f"执行命令: {' '.join(command)}")
+
     try:
         if stream_output:
             with subprocess.Popen(command, cwd=cwd, text=True) as process:
@@ -79,6 +85,8 @@ def run_command(
             logging.error(f"STDOUT:\n{e.stdout}")
         if e.stderr:
             logging.error(f"STDERR:\n{e.stderr}")
+        if propagate_exception:
+            raise e
         sys.exit(1)
 
 
@@ -88,7 +96,12 @@ def get_public_ip() -> str:
     ip_services = ["ip.sb", "ifconfig.me", "api.ipify.org", "icanhazip.com"]
     for service in ip_services:
         try:
-            result = run_command(["curl", "-s", "--ipv4", service], capture_output=True, check=True)
+            result = run_command(
+                ["curl", "-s", "--ipv4", service],
+                capture_output=True,
+                check=True,
+                propagate_exception=True,
+            )
             ip = result.stdout.strip()
             if ip:
                 logging.info(f"成功获取公网 IP: {ip}")
