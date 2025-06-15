@@ -1,12 +1,12 @@
 [project]
 name = "anytls-py"
-version = "0.0.3-post6"
-description = "mihomo-anytls-inbound 服务管理脚本"
+version = "0.1.0"
+description = "mihomo-anytls-inbound manager"
 readme = "README.md"
 authors = [
     { name = "QIN2DIM", email = "yaoqinse@gmail.com" }
 ]
-requires-python = ">=3.12"
+requires-python = ">=3.10"
 dependencies = [
     "typer>=0.15.4",
     "pyyaml>=6.0",
