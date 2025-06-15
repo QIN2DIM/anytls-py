@@ -21,9 +21,13 @@ def install(
     ip: Annotated[
         Optional[str], typer.Option("--ip", help="手动指定服务器公网 IP (可选，默认自动检测)")
     ] = None,
+    port: Annotated[
+        int,
+        typer.Option("--port", help="指定监听端口 (可选，默认 8443)"),
+    ] = 8443,
 ):
     """
     安装并启动 AnyTLS 服务。
     """
     manager = AnyTLSManager()
-    manager.install(domain=domain, password=password, ip=ip)
+    manager.install(domain=domain, password=password, ip=ip, port=port)

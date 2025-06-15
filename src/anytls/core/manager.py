@@ -148,7 +148,7 @@ class AnyTLSManager:
             logging.error("请参考 https://certbot.eff.org/instructions 手动安装后重试。")
             sys.exit(1)
 
-    def install(self, domain: str, password: Optional[str], ip: Optional[str]):
+    def install(self, domain: str, password: Optional[str], ip: Optional[str], port: int):
         """安装并启动 AnyTLS 服务"""
         # --- 步骤 1: 初始检查和依赖安装 ---
         logging.info("--- 步骤 1/4: 开始环境检查与依赖安装 ---")
@@ -216,7 +216,7 @@ class AnyTLSManager:
                 {
                     "name": f"anytls-in-{uuid.uuid4()}",
                     "type": "anytls",
-                    "port": constants.LISTEN_PORT,
+                    "port": port,
                     "listen": "0.0.0.0",
                     "users": {f"user_{uuid.uuid4().hex[:8]}": service_password},
                     "certificate": f"/etc/letsencrypt/live/{domain}/fullchain.pem",
@@ -236,7 +236,7 @@ class AnyTLSManager:
                     "image": constants.SERVICE_IMAGE,
                     "container_name": f"anytls-inbound-{domain}",
                     "restart": "always",
-                    "ports": [f"{constants.LISTEN_PORT}:{constants.LISTEN_PORT}"],
+                    "ports": [f"{port}:{port}"],
                     "working_dir": "/app/proxy-inbound/",
                     "volumes": [
                         "/etc/letsencrypt/:/etc/letsencrypt/",
@@ -265,7 +265,7 @@ class AnyTLSManager:
             "name": domain,
             "type": "anytls",
             "server": public_ip,
-            "port": constants.LISTEN_PORT,
+            "port": port,
             "password": service_password,
             "client_fingerprint": "chrome",
             "udp": True,
