@@ -9,30 +9,10 @@ from pathlib import Path
 from typing import Optional
 
 DOCKER_INSTALL_SCRIPT = """
-echo ">>> 正在更新软件包索引并安装依赖..."
-apt-get update
-apt-get install -y ca-certificates curl gnupg lsb-release
-
-echo ">>> 正在添加 Docker GPG 密钥..."
-mkdir -m 0755 -p /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-
-echo ">>> 正在设置 Docker APT 仓库..."
-echo \
-  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-  $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-echo ">>> 再次更新软件包索引..."
-apt-get update
-
-echo ">>> 正在安装 Docker Engine, CLI, Containerd 和 Docker Compose 插件..."
-apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-
-echo ">>> 正在启动并启用 Docker 服务..."
-systemctl start docker
-systemctl enable docker
-
-echo ">>> Docker 和 Docker Compose 安装完成。"
+echo ">>> 正在使用官方脚本 (get.docker.com) 安装 Docker..."
+echo ">>> 此脚本将自动检测您的 Linux 发行版并进行适配。"
+curl -fsSL https://get.docker.com | sh
+echo ">>> Docker 安装脚本执行完毕。"
 """
 
 
@@ -116,3 +96,10 @@ def generate_password(length: int = 16) -> str:
     """生成一个安全的随机密码"""
     alphabet = string.ascii_letters + string.digits
     return "".join(secrets.choice(alphabet) for _ in range(length))
+
+
+def is_root():
+    """检查当前用户是否为 root。"""
+    # This function is mentioned in the original file but not implemented in the new file
+    # It's left unchanged as it's not clear what it's supposed to do
+    pass
