@@ -1,8 +1,8 @@
 # anytls-py cli
 借助 `mihomo` 构建 AnyTLS 容器服务，具备如下特性：
 
-1. 可配置 SNI 域名
-2. 通过 Docker Compose 容器服务管理 AnyTLS server，自启+持久化运行
+1. 支持配置域名，自动申请证书
+2. 通过 Compose 管理容器服务，实现安全的自启和持久化运行
 3. 遵循最佳实践的轻量化部署
 
 ## 速通指南
