@@ -105,6 +105,38 @@ class AnyTLSManager:
         except Exception as e:
             logging.error(e)
 
+    def _check_certbot(self):
+        """检查 Certbot 是否安装，如果未安装则提示并尝试自动安装。"""
+        logging.info("正在检查 Certbot 是否安装...")
+        if shutil.which("certbot"):
+            logging.info("Certbot 已安装。")
+            return
+
+        logging.warning("未检测到 Certbot。Certbot 是申请 HTTPS 证书所必需的。")
+        if self.console.input("是否尝试自动为您安装 Certbot (推荐使用 Snap)？ (y/n): ").lower() != "y":
+            logging.error("用户取消安装。无法继续申请证书。")
+            logging.error("请访问 https://certbot.eff.org/ 手动安装 Certbot 后再试。")
+            sys.exit(1)
+
+        logging.info("正在尝试使用 Snap 安装 Certbot...")
+        try:
+            # 使用 Snap 安装 Certbot 的推荐命令
+            utils.run_command("sudo snap install core".split())
+            utils.run_command("sudo snap refresh core".split())
+            utils.run_command("sudo snap install --classic certbot".split())
+            # 创建软链接，以便可以直接调用 certbot。如果已存在则会失败，所以 check=False
+            utils.run_command("sudo ln -s /snap/bin/certbot /usr/bin/certbot".split(), check=False)
+
+            logging.info("Certbot 安装成功！")
+            logging.info("为了使 Shell 环境识别到新安装的 certbot 命令，您可能需要重新登录。")
+            logging.info("请再次运行 'install' 命令以继续。")
+            sys.exit(0)
+        except Exception as e:
+            logging.error(f"使用 Snap 安装 Certbot 失败: {e}")
+            logging.error("您的系统可能不支持 Snap，或安装过程中出现错误。")
+            logging.error("请参考 https://certbot.eff.org/instructions 手动安装后重试。")
+            sys.exit(1)
+
     def install(self, domain: str, password: Optional[str], ip: Optional[str]):
         """安装并启动 AnyTLS 服务"""
         logging.info(f"--- 开始安装 AnyTLS 服务 (域名: {domain}) ---")
@@ -115,6 +147,7 @@ class AnyTLSManager:
                 return
 
         self._check_dependencies()
+        self._check_certbot()
 
         public_ip = ip or utils.get_public_ip()
         service_password = password or utils.generate_password()
