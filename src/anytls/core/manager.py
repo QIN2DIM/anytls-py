@@ -116,7 +116,8 @@ class AnyTLSManager:
 
     def _check_certbot(self, auto_install: bool = False) -> bool:
         """
-        检查 Certbot 是否安装。
+        检查 Certbot 是否安装，并根据需要自动安装。
+        采用 Certbot 官方推荐的 Snap 方式安装，以确保版本最新并能自动续期。
         :param auto_install: 如果为 True，当 certbot 未安装时，会尝试自动安装。
         :return: 如果 Certbot 之前未安装，并且本次成功安装了，则返回 True。否则返回 False。
         """
@@ -132,19 +133,38 @@ class AnyTLSManager:
             logging.error("请先运行 'install' 命令来安装所有依赖。")
             sys.exit(1)
 
-        logging.info("将自动为您安装 Certbot。")
+        logging.info("将自动为您安装 Certbot (通过 Snap)。")
+        logging.info("此过程需要 sudo 权限，且可能需要几分钟。")
 
-        logging.info("正在尝试使用 Snap 安装 Certbot...")
         try:
-            utils.run_command("sudo snap install core".split())
-            utils.run_command("sudo snap refresh core".split())
-            utils.run_command("sudo snap install --classic certbot".split())
-            utils.run_command("sudo ln -s /snap/bin/certbot /usr/bin/certbot".split(), check=False)
-            logging.info("Certbot 安装成功！")
+            # 检查 snapd 是否安装，如果没有，则尝试通过 apt 安装
+            if not shutil.which("snap"):
+                logging.warning("未检测到 'snap' 命令, 正在尝试使用 apt 安装 'snapd'...")
+                try:
+                    utils.run_command(["sudo", "apt-get", "update", "-y"], propagate_exception=True)
+                    utils.run_command(
+                        ["sudo", "apt-get", "install", "-y", "snapd"], propagate_exception=True
+                    )
+                    logging.info("snapd 安装成功。")
+                except Exception as apt_e:
+                    logging.error(f"使用 apt 安装 snapd 失败: {apt_e}")
+                    logging.error("您的系统可能不是基于 Debian/Ubuntu，或没有 apt 工具。")
+                    logging.error(
+                        "请参考 https://snapcraft.io/docs/installing-snapd 手动安装 snapd 后重试。"
+                    )
+                    sys.exit(1)
+
+            # 使用 Snap 安装 Certbot
+            utils.run_command(["sudo", "snap", "install", "core"])
+            utils.run_command(["sudo", "snap", "refresh", "core"])
+            utils.run_command(["sudo", "snap", "install", "--classic", "certbot"])
+            utils.run_command(
+                ["sudo", "ln", "-s", "/snap/bin/certbot", "/usr/bin/certbot"], check=False
+            )
+            logging.info("Certbot 安装成功！它将自动处理证书续期。")
             return True  # 进行了安装
         except Exception as e:
             logging.error(f"使用 Snap 安装 Certbot 失败: {e}")
-            logging.error("您的系统可能不支持 Snap，或安装过程中出现错误。")
             logging.error("请参考 https://certbot.eff.org/instructions 手动安装后重试。")
             sys.exit(1)
 
@@ -152,7 +172,7 @@ class AnyTLSManager:
         self, domain: str, password: Optional[str], ip: Optional[str], port: int, image: str
     ):
         """安装并启动 AnyTLS 服务"""
-        # --- 步骤 1: 初始检查和依赖安装 ---
+        # --- 步骤 1/4: 初始检查和依赖安装 ---
         logging.info("--- 步骤 1/4: 开始环境检查与依赖安装 ---")
 
         # 检查并安装 Docker & Certbot
