@@ -168,6 +168,77 @@ class AnyTLSManager:
             logging.error("请参考 https://certbot.eff.org/instructions 手动安装后重试。")
             sys.exit(1)
 
+    def _check_bbr(self):
+        """
+        检查并尝试开启 BBR 拥塞控制算法。
+        这是一个尽力而为的操作，任何失败都不会中断主安装流程。
+        """
+        logging.info("正在检查并尝试开启 BBR...")
+        try:
+            # 1. 检查 BBR 是否已经开启
+            qdisc_res = utils.run_command(
+                ["sysctl", "net.core.default_qdisc"],
+                capture_output=True,
+                check=False,
+                skip_execution_logging=True,
+            )
+            tcp_cong_res = utils.run_command(
+                ["sysctl", "net.ipv4.tcp_congestion_control"],
+                capture_output=True,
+                check=False,
+                skip_execution_logging=True,
+            )
+
+            qdisc_ok = qdisc_res.returncode == 0 and "fq" in qdisc_res.stdout
+            tcp_cong_ok = tcp_cong_res.returncode == 0 and "bbr" in tcp_cong_res.stdout
+
+            if qdisc_ok and tcp_cong_ok:
+                logging.info("BBR 已成功开启。")
+                return
+
+            logging.info("检测到 BBR 未开启或未完全开启，将尝试自动配置。")
+            self.console.print("此操作需要 [bold yellow]sudo[/bold yellow] 权限来修改系统配置。")
+
+            # 2. 写入配置
+            bbr_config = {
+                "net.core.default_qdisc": "fq",
+                "net.ipv4.tcp_congestion_control": "bbr",
+            }
+            for key, value in bbr_config.items():
+                cmd = f"grep -qxF '{key}={value}' /etc/sysctl.conf || echo '{key}={value}' | sudo tee -a /etc/sysctl.conf > /dev/null"
+                utils.run_command(
+                    ["bash", "-c", cmd], propagate_exception=True, skip_execution_logging=True
+                )
+            logging.info("BBR 配置已写入 /etc/sysctl.conf。")
+
+            # 3. 应用配置
+            logging.info("正在应用新的 sysctl 配置...")
+            utils.run_command(["sudo", "sysctl", "-p"], propagate_exception=True)
+
+            # 4. 再次检查
+            logging.info("正在验证 BBR 是否成功开启...")
+            qdisc_res_after = utils.run_command(
+                ["sysctl", "net.core.default_qdisc"], capture_output=True, propagate_exception=True
+            )
+            tcp_cong_res_after = utils.run_command(
+                ["sysctl", "net.ipv4.tcp_congestion_control"],
+                capture_output=True,
+                propagate_exception=True,
+            )
+
+            if "fq" in qdisc_res_after.stdout and "bbr" in tcp_cong_res_after.stdout:
+                logging.info("BBR 成功开启！")
+            else:
+                logging.warning("BBR 配置已应用，但验证未完全成功。可能需要重启系统才能生效。")
+                logging.warning(
+                    f"当前 qdisc: {qdisc_res_after.stdout.strip()}, tcp_congestion_control: {tcp_cong_res_after.stdout.strip()}"
+                )
+
+        except Exception as e:
+            logging.warning(f"自动开启 BBR 失败: {e}")
+            logging.warning("这通常不会影响 AnyTLS 的核心功能，但可能会影响网络性能。")
+            logging.warning("您可以参考相关文档手动开启 BBR。")
+
     def install(
         self, domain: str, password: Optional[str], ip: Optional[str], port: int, image: str
     ):
@@ -179,6 +250,9 @@ class AnyTLSManager:
         # 如果安装了任何一个，脚本需要重启以加载新环境
         docker_installed_now = self._check_dependencies(auto_install=True)
         certbot_installed_now = self._check_certbot(auto_install=True)
+
+        # 检查并开启 BBR (尽力而为)
+        self._check_bbr()
 
         if docker_installed_now or certbot_installed_now:
             logging.warning("依赖项已成功安装。为了使环境更改完全生效，脚本将自动重新执行。")
