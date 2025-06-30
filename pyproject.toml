@@ -1,6 +1,6 @@
 [project]
 name = "anytls-py"
-version = "0.1.11"
+version = "0.1.13"
 description = "mihomo-anytls-inbound manager"
 readme = "README.md"
 authors = [
@@ -23,12 +23,6 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/anytls"]
 
-[tool.pytest.ini_options]
-testpaths = ["tests", "examples"]
-asyncio_mode = "auto"
-asyncio_default_fixture_loop_scope = "function"
-filterwarnings = "ignore::DeprecationWarning"
-
 [tool.hatch.version]
 source = "uv-dynamic-versioning"
 
@@ -40,4 +34,5 @@ bump = true
 [dependency-groups]
 dev = [
     "black>=25.1.0",
+    "ruff>=0.12.1",
 ]

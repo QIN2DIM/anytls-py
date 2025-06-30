@@ -1,4 +1,4 @@
-"""AnyTLS 服务核心管理逻辑"""
+"""服务核心管理逻辑"""
 
 import logging
 import os
@@ -13,10 +13,18 @@ from rich.console import Console
 from rich.syntax import Syntax
 
 from anytls.core import constants, utils
+from anytls.core.constants import (
+    TOOL_NAME,
+    COMPOSE_SERVICE_NAME,
+    COMPOSE_CONTAINER_PREFIX,
+    MIHOMO_LISTEN_TYPE,
+    MIHOMO_LISTENER_NAME_PREFIX,
+    DEFAULT_CLIENT_CONFIG,
+)
 
 
 class AnyTLSManager:
-    """封装 AnyTLS 服务管理的所有逻辑"""
+    """封装服务管理的所有逻辑"""
 
     def __init__(self):
         """初始化管理器"""
@@ -77,11 +85,27 @@ class AnyTLSManager:
 
         with constants.DOCKER_COMPOSE_PATH.open("r") as f:
             data = yaml.safe_load(f)
-            container_name = data["services"]["anytls-inbound"]["container_name"]
-            domain = container_name.split("anytls-inbound-")[-1]
+            container_name = data["services"][COMPOSE_SERVICE_NAME]["container_name"]
+            domain = container_name.split(COMPOSE_CONTAINER_PREFIX)[-1]
             if not domain:
                 raise ValueError
             return domain
+
+    def _preview_fmt_client_config(
+        self, *, domain: str, public_ip: str, port: int | str, password: str
+    ):
+        runtime_config = DEFAULT_CLIENT_CONFIG.copy()
+        runtime_config.update(
+            {"name": domain, "server": public_ip, "port": port, "password": password, "sni": domain}
+        )
+
+        client_yaml = yaml.dump([runtime_config], sort_keys=False)
+
+        self.console.print("\n" + "=" * 21 + " Mihomo 客户端配置 " + "=" * 21)
+        self.console.print(Syntax(client_yaml, "yaml"))
+        self.console.print("=" * 58 + "\n")
+
+        self.console.print(f"详见客户端配置文档：{constants.MIHOMO_PROXIES_DOCS}\n")
 
     def _check_dependencies(self, auto_install: bool = False) -> bool:
         """
@@ -114,7 +138,8 @@ class AnyTLSManager:
             # 在这种未知错误下，我们应该退出而不是继续
             sys.exit(1)
 
-    def _check_certbot(self, auto_install: bool = False) -> bool:
+    @staticmethod
+    def _check_certbot(auto_install: bool = False) -> bool:
         """
         检查 Certbot 是否安装，并根据需要自动安装。
         采用 Certbot 官方推荐的 Snap 方式安装，以确保版本最新并能自动续期。
@@ -173,7 +198,7 @@ class AnyTLSManager:
         检查并尝试开启 BBR 拥塞控制算法。
         这是一个尽力而为的操作，任何失败都不会中断主安装流程。
         """
-        logging.info("正在检查并尝试开启 BBR...")
+        logging.info("正在检查并尝试开启 BBR+Cake...")
         try:
             # 1. 检查 BBR 是否已经开启
             qdisc_res = utils.run_command(
@@ -189,19 +214,19 @@ class AnyTLSManager:
                 skip_execution_logging=True,
             )
 
-            qdisc_ok = qdisc_res.returncode == 0 and "fq" in qdisc_res.stdout
+            qdisc_ok = qdisc_res.returncode == 0 and "cake" in qdisc_res.stdout
             tcp_cong_ok = tcp_cong_res.returncode == 0 and "bbr" in tcp_cong_res.stdout
 
             if qdisc_ok and tcp_cong_ok:
-                logging.info("BBR 已成功开启。")
+                logging.info("BBR+Cake 已成功开启。")
                 return
 
-            logging.info("检测到 BBR 未开启或未完全开启，将尝试自动配置。")
+            logging.info("检测到 BBR+Cake 未开启或未完全开启，将尝试自动配置。")
             self.console.print("此操作需要 [bold yellow]sudo[/bold yellow] 权限来修改系统配置。")
 
             # 2. 写入配置
             bbr_config = {
-                "net.core.default_qdisc": "fq",
+                "net.core.default_qdisc": "cake",
                 "net.ipv4.tcp_congestion_control": "bbr",
             }
             for key, value in bbr_config.items():
@@ -209,14 +234,14 @@ class AnyTLSManager:
                 utils.run_command(
                     ["bash", "-c", cmd], propagate_exception=True, skip_execution_logging=True
                 )
-            logging.info("BBR 配置已写入 /etc/sysctl.conf。")
+            logging.info("BBR+Cake 配置已写入 /etc/sysctl.conf。")
 
             # 3. 应用配置
             logging.info("正在应用新的 sysctl 配置...")
             utils.run_command(["sudo", "sysctl", "-p"], propagate_exception=True)
 
             # 4. 再次检查
-            logging.info("正在验证 BBR 是否成功开启...")
+            logging.info("正在验证 BBR+Cake 是否成功开启...")
             qdisc_res_after = utils.run_command(
                 ["sysctl", "net.core.default_qdisc"], capture_output=True, propagate_exception=True
             )
@@ -226,23 +251,23 @@ class AnyTLSManager:
                 propagate_exception=True,
             )
 
-            if "fq" in qdisc_res_after.stdout and "bbr" in tcp_cong_res_after.stdout:
-                logging.info("BBR 成功开启！")
+            if "cake" in qdisc_res_after.stdout and "bbr" in tcp_cong_res_after.stdout:
+                logging.info("BBR+Cake 成功开启！")
             else:
-                logging.warning("BBR 配置已应用，但验证未完全成功。可能需要重启系统才能生效。")
+                logging.warning("BBR+Cake 配置已应用，但验证未完全成功。可能需要重启系统才能生效。")
                 logging.warning(
                     f"当前 qdisc: {qdisc_res_after.stdout.strip()}, tcp_congestion_control: {tcp_cong_res_after.stdout.strip()}"
                 )
 
         except Exception as e:
             logging.warning(f"自动开启 BBR 失败: {e}")
-            logging.warning("这通常不会影响 AnyTLS 的核心功能，但可能会影响网络性能。")
+            logging.warning(f"这通常不会影响 {TOOL_NAME} 的核心功能，但可能会影响网络性能。")
             logging.warning("您可以参考相关文档手动开启 BBR。")
 
     def install(
         self, domain: str, password: Optional[str], ip: Optional[str], port: int, image: str
     ):
-        """安装并启动 AnyTLS 服务"""
+        """安装并启动服务"""
         # --- 步骤 1/4: 初始检查和依赖安装 ---
         logging.info("--- 步骤 1/4: 开始环境检查与依赖安装 ---")
 
@@ -269,7 +294,7 @@ class AnyTLSManager:
 
         logging.info("--- 所有依赖均已满足 ---")
 
-        logging.info(f"--- 步骤 2/4: 开始安装 AnyTLS 服务 (域名: {domain}) ---")
+        logging.info(f"--- 步骤 2/4: 开始安装 {TOOL_NAME} 服务 (域名: {domain}) ---")
         if constants.BASE_DIR.exists():
             logging.warning(f"工作目录 {constants.BASE_DIR} 已存在。继续操作将可能覆盖现有配置。")
             if self.console.input("是否继续？ (y/n): ").lower() != "y":
@@ -279,7 +304,7 @@ class AnyTLSManager:
         public_ip = ip or utils.get_public_ip()
         service_password = password or utils.generate_password()
 
-        logging.info(f"--- 步骤 3/4: 申请证书与生成配置 ---")
+        logging.info("--- 步骤 3/4: 申请证书与生成配置 ---")
         logging.info(f"正在为域名 {domain} 申请 Let's Encrypt 证书...")
         try:
             utils.run_command(
@@ -310,8 +335,8 @@ class AnyTLSManager:
         mihomo_cfg_dict = {
             "listeners": [
                 {
-                    "name": f"anytls-in-{uuid.uuid4()}",
-                    "type": "anytls",
+                    "name": f"{MIHOMO_LISTENER_NAME_PREFIX}{uuid.uuid4()}",
+                    "type": MIHOMO_LISTEN_TYPE,
                     "port": port,
                     "listen": "0.0.0.0",
                     "users": {f"user_{uuid.uuid4().hex[:8]}": service_password},
@@ -325,14 +350,13 @@ class AnyTLSManager:
             yaml.dump(mihomo_cfg_dict, f, sort_keys=False)
         logging.info(f"已生成配置文件: {constants.CONFIG_PATH}")
 
-        # 创建 Docker Compose 配置
         docker_compose_cfg_dict = {
             "services": {
-                "anytls-inbound": {
+                COMPOSE_SERVICE_NAME: {
                     "image": image,
-                    "container_name": f"anytls-inbound-{domain}",
+                    "container_name": f"{COMPOSE_CONTAINER_PREFIX}{domain}",
                     "restart": "always",
-                    "ports": [f"{port}:{port}"],
+                    "network_mode": "host",
                     "working_dir": "/app/proxy-inbound/",
                     "volumes": [
                         "/etc/letsencrypt/:/etc/letsencrypt/",
@@ -354,35 +378,16 @@ class AnyTLSManager:
         utils.run_command(compose_cmd + ["down"], cwd=constants.BASE_DIR, check=False)
         utils.run_command(compose_cmd + ["up", "-d"], cwd=constants.BASE_DIR)
 
-        logging.info("--- AnyTLS 服务安装并启动成功！ ---")
+        logging.info(f"--- {TOOL_NAME} 服务安装并启动成功！ ---")
 
         # 打印客户端配置
-        client_config_dict = {
-            "name": domain,
-            "type": "anytls",
-            "server": public_ip,
-            "port": port,
-            "password": service_password,
-            "client_fingerprint": "chrome",
-            "udp": True,
-            "idle_session_check_interval": 30,
-            "idle_session_timeout": 30,
-            "min_idle_session": 0,
-            "sni": domain,
-            "alpn": ["h2", "http/1.1"],
-            "skip_cert_verify": False,
-        }
-
-        client_yaml = yaml.dump([client_config_dict], sort_keys=False)
-        self.console.print("\n" + "=" * 20 + " 客户端配置信息[mihomo] " + "=" * 20)
-        self.console.print(Syntax(client_yaml, "yaml"))
-        self.console.print("=" * 58 + "\n")
-
-        self.console.print(f"详见客户端配置文档：{constants.MIHOMO_ANYTLS_DOCS}\n")
+        self._preview_fmt_client_config(
+            domain=domain, public_ip=public_ip, port=port, password=service_password
+        )
 
     def remove(self):
-        """停止并移除 AnyTLS 服务和相关文件"""
-        logging.info("--- 开始卸载 AnyTLS 服务 ---")
+        """停止并移除服务和相关文件"""
+        logging.info(f"--- 开始卸载 {TOOL_NAME} 服务 ---")
         if not constants.BASE_DIR.exists():
             logging.warning(f"工作目录 {constants.BASE_DIR} 不存在，可能服务未安装或已被移除。")
             return
@@ -401,23 +406,23 @@ class AnyTLSManager:
         utils.run_command(
             ["certbot", "delete", "--cert-name", domain, "--non-interactive"], check=False
         )
-        logging.info("--- AnyTLS 服务已成功卸载。 ---")
+        logging.info(f"--- {TOOL_NAME} 服务已成功卸载。 ---")
 
     def start(self):
         """启动服务"""
         self._ensure_service_installed()
-        logging.info("正在启动 AnyTLS 服务...")
+        logging.info(f"正在启动 {TOOL_NAME} 服务...")
         compose_cmd = self._get_compose_cmd()
         utils.run_command(compose_cmd + ["up", "-d"], cwd=constants.BASE_DIR)
-        logging.info("AnyTLS 服务已启动。")
+        logging.info(f"{TOOL_NAME} 服务已启动。")
 
     def stop(self):
         """停止服务"""
         self._ensure_service_installed()
-        logging.info("正在停止 AnyTLS 服务...")
+        logging.info(f"正在停止 {TOOL_NAME} 服务...")
         compose_cmd = self._get_compose_cmd()
         utils.run_command(compose_cmd + ["down"], cwd=constants.BASE_DIR)
-        logging.info("AnyTLS 服务已停止。")
+        logging.info(f"{TOOL_NAME} 服务已停止。")
 
     def update(self, password: Optional[str], port: Optional[int], image: Optional[str]):
         """
@@ -426,7 +431,7 @@ class AnyTLSManager:
         如果提供了参数，则更新相应的配置，然后拉取镜像并重启。
         """
         self._ensure_service_installed()
-        logging.info("--- 开始更新 AnyTLS 服务 ---")
+        logging.info(f"--- 开始更新 {TOOL_NAME} 服务 ---")
         config_changed = False
 
         try:
@@ -448,13 +453,13 @@ class AnyTLSManager:
             if port:
                 logging.info(f"正在更新监听端口为 {port}...")
                 mihomo_cfg["listeners"][0]["port"] = port
-                docker_compose_cfg["services"]["anytls-inbound"]["ports"] = [f"{port}:{port}"]
+                docker_compose_cfg["services"][COMPOSE_SERVICE_NAME]["ports"] = [f"{port}:{port}"]
                 config_changed = True
                 logging.info(f"监听端口已在配置中更新为 {port}。")
 
             if image:
                 logging.info(f"正在更新服务镜像为 {image}...")
-                docker_compose_cfg["services"]["anytls-inbound"]["image"] = image
+                docker_compose_cfg["services"][COMPOSE_SERVICE_NAME]["image"] = image
                 config_changed = True
                 logging.info(f"服务镜像已在配置中更新为 {image}。")
 
@@ -468,7 +473,7 @@ class AnyTLSManager:
                 logging.info("配置文件保存成功。")
 
         except FileNotFoundError:
-            logging.error(f"配置文件未找到。请确认服务已正确安装。")
+            logging.error("配置文件未找到。请确认服务已正确安装。")
             sys.exit(1)
         except Exception as e:
             logging.error(f"更新配置时发生错误: {e}")
@@ -486,7 +491,7 @@ class AnyTLSManager:
         utils.run_command(compose_cmd + ["down"], cwd=constants.BASE_DIR, check=False)
         utils.run_command(compose_cmd + ["up", "-d"], cwd=constants.BASE_DIR)
 
-        logging.info("--- AnyTLS 服务更新完成。 ---")
+        logging.info(f"--- {TOOL_NAME} 服务更新完成。 ---")
 
         # --- 步骤 5: 显示更新后的状态 ---
         self.console.print("\n--- 更新后服务状态 ---")
@@ -502,12 +507,12 @@ class AnyTLSManager:
     def check(self):
         """检查服务状态并打印客户端配置"""
         self._ensure_service_installed()
-        self.console.print("\n--- 开始检查 AnyTLS 服务状态 ---")
+        self.console.print(f"\n--- 开始检查 {TOOL_NAME} 服务状态 ---")
 
         # rich Components
         from rich.table import Table
 
-        table = Table(title="AnyTLS 服务状态一览")
+        table = Table(title=f"{TOOL_NAME} 服务状态一览")
         table.add_column("检查项", justify="right", style="cyan", no_wrap=True)
         table.add_column("状态", style="magenta")
 
@@ -517,7 +522,7 @@ class AnyTLSManager:
             table.add_row("管理域名", domain)
 
             # 2. 检查 Docker 容器状态
-            container_name = f"anytls-inbound-{domain}"
+            container_name = f"{COMPOSE_CONTAINER_PREFIX}{domain}"
             try:
                 result = utils.run_command(
                     [
@@ -562,34 +567,12 @@ class AnyTLSManager:
             # 从 config.yaml 获取密码和端口
             with constants.CONFIG_PATH.open("r", encoding="utf8") as f:
                 server_config = yaml.safe_load(f)
-
             listener_config = server_config["listeners"][0]
             port = listener_config["port"]
-            # users 的 key 是随机的，所以我们直接取第一个 value
             password = list(listener_config["users"].values())[0]
-
-            client_config_dict = {
-                "name": domain,  # 'domain' from earlier in this method
-                "type": "anytls",
-                "server": public_ip,
-                "port": port,
-                "password": password,
-                "client_fingerprint": "chrome",
-                "udp": True,
-                "idle_session_check_interval": 30,
-                "idle_session_timeout": 30,
-                "min_idle_session": 0,
-                "sni": domain,
-                "alpn": ["h2", "http/1.1"],
-                "skip_cert_verify": False,
-            }
-
-            client_yaml = yaml.dump([client_config_dict], sort_keys=False)
-            self.console.print("\n" + "=" * 20 + " 客户端配置信息[mihomo] " + "=" * 20)
-            self.console.print(Syntax(client_yaml, "yaml"))
-            self.console.print("=" * 58 + "\n")
-            self.console.print(f"详见客户端配置文档：{constants.MIHOMO_ANYTLS_DOCS}\n")
-
+            self._preview_fmt_client_config(
+                domain=domain, public_ip=public_ip, port=port, password=password
+            )
         except FileNotFoundError:
             self.console.print("\n[yellow]配置文件未找到，无法生成客户端配置。[/yellow]")
             self.console.print(
