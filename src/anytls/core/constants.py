@@ -18,6 +18,8 @@ COMPOSE_CONTAINER_PREFIX = f"{COMPOSE_SERVICE_NAME}-"
 MIHOMO_LISTEN_TYPE = "anytls"
 MIHOMO_LISTENER_NAME_PREFIX = f"{MIHOMO_LISTEN_TYPE}-in-"
 
+SHARE_LINK_TPL = "anytls://{pwd}@{server}:{port}?sni={sni}#{alias}"
+
 # 客户端配置模板
 DEFAULT_CLIENT_CONFIG = {
     "name": "{{DOMAIN}}",

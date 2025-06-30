@@ -20,6 +20,7 @@ from anytls.core.constants import (
     MIHOMO_LISTEN_TYPE,
     MIHOMO_LISTENER_NAME_PREFIX,
     DEFAULT_CLIENT_CONFIG,
+    SHARE_LINK_TPL,
 )
 
 
@@ -91,6 +92,16 @@ class AnyTLSManager:
                 raise ValueError
             return domain
 
+    @staticmethod
+    def _as_share_link(client_config: dict) -> str:
+        return SHARE_LINK_TPL.format(
+            pwd=client_config.get("password", ""),
+            server=client_config.get("server", ""),
+            port=client_config.get("port", ""),
+            sni=client_config.get("sni", ""),
+            alias=client_config.get("sni", ""),
+        )
+
     def _preview_fmt_client_config(
         self, *, domain: str, public_ip: str, port: int | str, password: str
     ):
@@ -100,9 +111,14 @@ class AnyTLSManager:
         )
 
         client_yaml = yaml.dump([runtime_config], sort_keys=False)
+        share_link = self._as_share_link(runtime_config)
 
         self.console.print("\n" + "=" * 21 + " Mihomo 客户端配置 " + "=" * 21)
         self.console.print(Syntax(client_yaml, "yaml"))
+
+        self.console.print("\n" + "=" * 20 + f" {TOOL_NAME} 分享链接 " + "=" * 20)
+        self.console.print(Syntax("\n" + share_link + "\n", "markdown"))
+
         self.console.print("=" * 58 + "\n")
 
         self.console.print(f"详见客户端配置文档：{constants.MIHOMO_PROXIES_DOCS}\n")
