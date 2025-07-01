@@ -7,6 +7,16 @@
 
 ## 速通指南
 
+一键部署脚本，以 `uv tool` 的方式调度管理工具：
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh && \
+source $HOME/.local/bin/env; \
+uv tool install anytls-py -U && \
+anytls self update && \
+anytls install -d <填写域名>
+```
+
 ### uv
 
 > [uv installation](https://docs.astral.sh/uv/getting-started/installation/) 
