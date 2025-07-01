@@ -11,7 +11,7 @@
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh && \
-source $HOME/.local/bin/env; \
+source $HOME/.local/bin/env ; \
 uv tool install anytls-py -U && \
 uv run anytls self update && \
 uv run anytls install -d <填写域名>
