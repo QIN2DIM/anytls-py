@@ -13,8 +13,8 @@
 curl -LsSf https://astral.sh/uv/install.sh | sh && \
 source $HOME/.local/bin/env; \
 uv tool install anytls-py -U && \
-anytls self update && \
-anytls install -d <填写域名>
+uv run anytls self update && \
+uv run anytls install -d <填写域名>
 ```
 
 ### uv
